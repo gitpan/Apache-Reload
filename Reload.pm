@@ -1,10 +1,10 @@
-# $Id: Reload.pm,v 1.13 2000/10/03 16:54:26 matt Exp $
+# $Id: Reload.pm,v 1.16 2001/04/22 18:09:59 matt Exp $
 
 package Apache::Reload;
 
 use strict;
 
-$Apache::Reload::VERSION = '0.06';
+$Apache::Reload::VERSION = '0.07';
 
 use vars qw(%INCS %Stat $TouchTime %UndefFields);
 
@@ -52,11 +52,17 @@ sub handler {
     
     my $TouchFile = ref($r) && $r->dir_config("ReloadTouchFile");
     
+    my $TouchModules;
+    
     if ($TouchFile) {
         warn "Checking mtime of $TouchFile\n" if $DEBUG;
         my $touch_mtime = (stat($TouchFile))[9] || return 1;
         return 1 unless $touch_mtime > $TouchTime;
         $TouchTime = $touch_mtime;
+        my $sym = Apache->gensym;
+        open($sym, $TouchFile) || die "Can't open '$TouchFile': $!";
+        $TouchModules = <$sym>;
+        chomp $TouchModules;
     }
     
     if (ref($r) && (lc($r->dir_config("ReloadAll") || 'on') eq 'on')) {
@@ -64,7 +70,10 @@ sub handler {
     }
     else {
         *Apache::Reload::INCS = \%INCS;
-        my $ExtraList = (ref($r) && $r->dir_config("ReloadModules")) || '';
+        my $ExtraList = 
+                $TouchModules || 
+                (ref($r) && $r->dir_config("ReloadModules")) || 
+                '';
         my @extra = split(/\s+/, $ExtraList);
         foreach (@extra) {
             if (/(.*)::\*$/) {
@@ -97,6 +106,14 @@ sub handler {
         warn "Apache::Reload: Checking mtime of $key\n" if $DEBUG;
         
         my $mtime = (stat $file)[9];
+
+        unless (defined($mtime) && $mtime) {
+            for (@INC) {
+                $mtime = (stat "$_/$file")[9];
+                last if defined($mtime) && $mtime;
+            }
+        }
+
         warn("Apache::Reload: Can't locate $file\n"),next 
                 unless defined $mtime and $mtime;
         
