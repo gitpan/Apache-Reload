@@ -1,0 +1,19 @@
+
+Apache::Reload
+
+This module is designed as both a drop-in replacement for Apache::StatINC
+and an improvement on that module allowing you to define modules that
+get Reloaded on change without having to stat() the whole of %INC.
+
+Apache::Reload gets installed as a PerlInitHandler, just like Apache::StatINC. 
+On every request it checks the list of modules/files to determine which
+files it needs to reload. In normal mode it works just like StatINC, going
+through the whole of %INC checking each module in turn. In "Import" mode,
+it goes through the list of modules that have added:
+
+	use Apache::Reload;
+
+to their code. This allows you much finer grained control over the number of 
+stat() calls being made on each hit, and allows you to add that module into
+your application code, and leave it out of core modules that you know won't
+be changing.
