@@ -1,12 +1,12 @@
-# $Id: Reload.pm,v 1.9 2000/08/30 10:57:33 matt Exp $
+# $Id: Reload.pm,v 1.11 2000/09/03 10:32:51 matt Exp $
 
 package Apache::Reload;
 
 use strict;
 
-$Apache::Reload::VERSION = '0.04';
+$Apache::Reload::VERSION = '0.05';
 
-use vars qw(%INCS %Stat $TouchTime);
+use vars qw(%INCS %Stat $TouchTime %UndefFields);
 
 %Stat = ($INC{"Apache/Reload.pm"} => time);
 
@@ -30,7 +30,19 @@ sub register_module {
     my ($class, $package, $file) = @_;
     my $module = package_to_module($package);
     
-    $INCS{$module} = $file;
+    if ($file) {
+        $INCS{$module} = $file;
+    }
+    else {
+        $file = $INC{$module};
+        return unless $file;
+        $INCS{$module} = $file;
+    }
+    
+    no strict 'refs';
+    if (%{"${package}::FIELDS"}) {
+        $UndefFields{$module} = "${package}::FIELDS";
+    }
 }
 
 sub handler {
@@ -55,17 +67,34 @@ sub handler {
         my $ExtraList = ref($r) && $r->dir_config("ReloadModules");
         my @extra = split(/\s+/, $ExtraList);
         foreach (@extra) {
-            my $module = package_to_module($_);
-            my $file = $INC{$module};
-            next unless $file;
-            $Apache::Reload::INCS{$module} = $file;
+            if (/(.*)::\*$/) {
+                my $prefix = $1;
+                $prefix =~ s/::/\//g;
+                foreach my $match (keys %INC) {
+                    if ($match =~ /^\Q$prefix\E/) {
+                        $Apache::Reload::INCS{$match} = $INC{$match};
+                        my $package = $match;
+                        $package =~ s/\//::/g;
+                        $package =~ s/\.pm$//;
+                        no strict 'refs';
+#                        warn "checking for FIELDS on $package\n";
+                        if (%{"${package}::FIELDS"}) {
+#                            warn "found fields in $package\n";
+                            $UndefFields{$match} = "${package}::FIELDS";
+                        }
+                    }
+                }
+            }
+            else {
+                Apache::Reload->register_module($_);
+            }
         }
     }
     
     
     while (my($key, $file) = each %Apache::Reload::INCS) {
         local $^W;
-#        warn "Apache::Reload: Checking mtime of $key\n" if $DEBUG;
+        warn "Apache::Reload: Checking mtime of $key\n" if $DEBUG;
         
         my $mtime = (stat $file)[9];
         warn("Apache::Reload: Can't locate $file\n"),next 
@@ -77,6 +106,12 @@ sub handler {
         
         if ($mtime > $Stat{$file}) {
             delete $INC{$key};
+ #           warn "Reloading $key\n";
+            if (my $symref = $UndefFields{$key}) {
+#                warn "undeffing fields\n";
+                no strict 'refs';
+                undef %{$symref};
+            }
             require $key;
             warn("Apache::Reload: process $$ reloading $key\n")
                     if $DEBUG;
@@ -175,6 +210,18 @@ type:
 
 And your modules will be magically reloaded on the next request. This option
 works in both StatINC emulation mode and the registered modules mode.
+
+=head1 PSUEDOHASHES
+
+The short summary of this is: Don't use psuedohashes. Use an array with
+constant indexes. Its faster in the general case, its more guaranteed, and
+generally, it works.
+
+The long summary is that I've done some work to get this working with
+modules that use psuedo hashes, but its still broken in the case of a
+single module that contains multiple packages that all use psuedohashes.
+
+So don't do that.
 
 =head1 AUTHOR
 
