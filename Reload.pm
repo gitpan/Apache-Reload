@@ -1,10 +1,10 @@
-# $Id: Reload.pm,v 1.6 2000/08/29 12:30:29 matt Exp $
+# $Id: Reload.pm,v 1.9 2000/08/30 10:57:33 matt Exp $
 
 package Apache::Reload;
 
 use strict;
 
-$Apache::Reload::VERSION = '0.03';
+$Apache::Reload::VERSION = '0.04';
 
 use vars qw(%INCS %Stat $TouchTime);
 
@@ -15,17 +15,22 @@ $TouchTime = time;
 sub import {
     my $class = shift;
     my ($package,$file) = (caller)[0,1];
+    
+    $class->register_module($package, $file);
+}
+
+sub package_to_module {
+    my $package = shift;
     $package =~ s/::/\//g;
     $package .= ".pm";
+    return $package;
+}
+
+sub register_module {
+    my ($class, $package, $file) = @_;
+    my $module = package_to_module($package);
     
-#    warn "Apache::Reload: $package loaded me\n";
-    
-    if (grep /^off$/, @_) {
-        delete $INCS{$package};
-    }
-    else {
-        $INCS{$package} = $file;
-    }
+    $INCS{$module} = $file;
 }
 
 sub handler {
@@ -47,7 +52,16 @@ sub handler {
     }
     else {
         *Apache::Reload::INCS = \%INCS;
+        my $ExtraList = ref($r) && $r->dir_config("ReloadModules");
+        my @extra = split(/\s+/, $ExtraList);
+        foreach (@extra) {
+            my $module = package_to_module($_);
+            my $file = $INC{$module};
+            next unless $file;
+            $Apache::Reload::INCS{$module} = $file;
+        }
     }
+    
     
     while (my($key, $file) = each %Apache::Reload::INCS) {
         local $^W;
@@ -78,7 +92,7 @@ __END__
 
 =head1 NAME
 
-Apache::Reload - Reload this module on each request (if modified)
+Apache::Reload - Reload changed modules
 
 =head1 SYNOPSIS
 
@@ -99,10 +113,10 @@ Then your module:
 
 =head1 DESCRIPTION
 
-This module is two things. First it is an adaptation of Randall 
+This module is two things. First it is an adaptation of Randal
 Schwartz's Stonehenge::Reload module that attempts to be a little 
 more intuitive and makes the usage easier. Stonehenge::Reload was
-written by Randall to make specific modules reload themselves when
+written by Randal to make specific modules reload themselves when
 they changed. Unlike Apache::StatINC, Stonehenge::Reload only checked
 the change time of modules that registered themselves with 
 Stonehenge::Reload, thus reducing stat() calls. Apache::Reload also
@@ -112,17 +126,41 @@ that register themselves with Apache::Reload if you explicitly turn off
 the StatINC emulation method (see below). Like Apache::StatINC,
 Apache::Reload must be installed as an Init Handler.
 
+=head2 StatINC Replacement
+
 To use as a StatINC replacement, simply add the following configuration
 to your httpd.conf:
 
   PerlInitHandler Apache::Reload
 
-To only reload modules that have explicitly registered with Apache::Reload,
+=head2 Register Modules Implicitly
+
+To only reload modules that have registered with Apache::Reload,
 add the following to the httpd.conf:
 
   PerlInitHandler Apache::Reload
   PerlSetVar ReloadAll Off
   # ReloadAll defaults to On
+
+Then any modules with the line:
+
+  use Apache::Reload;
+
+Will be reloaded when they change.
+
+=head2 Register Modules Explicitly
+
+You can also register modules explicitly in your httpd.conf file that
+you want to be reloaded on change:
+
+  PerlInitHandler Apache::Reload
+  PerlSetVar ReloadAll Off
+  PerlSetVar ReloadModules "My::Foo My::Bar Foo::Bar::Test"
+
+Note that these are split on whitespace, but the module list B<must>
+be in quotes, otherwise Apache tries to parse the parameter list.
+
+=head2 Special "Touch" File
 
 You can also set a file that you can touch() that causes the reloads to be
 performed. If you set this, and don't touch() the file, the reloads don't
@@ -137,19 +175,6 @@ type:
 
 And your modules will be magically reloaded on the next request. This option
 works in both StatINC emulation mode and the registered modules mode.
-
-If you want to temporarily turn off reloading of a module (which is 
-slightly problematic since it won't happen until the next hit on the
-same server because of the way this thing works, and won't start 
-reloading again until you restart the server) you can use the 'off'
-option (this only works when ReloadAll is Off):
-
-  use Apache::Reload 'off';
-
-Obviously you wouldn't do that generally, but it can be useful if you 
-intend to make large changes to a particular module whilst the server 
-is running, and still be able to test it compiles with perl -wc, without
-worrying about the server reloading it.
 
 =head1 AUTHOR
 
