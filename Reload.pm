@@ -1,10 +1,10 @@
-# $Id: Reload.pm,v 1.11 2000/09/03 10:32:51 matt Exp $
+# $Id: Reload.pm,v 1.13 2000/10/03 16:54:26 matt Exp $
 
 package Apache::Reload;
 
 use strict;
 
-$Apache::Reload::VERSION = '0.05';
+$Apache::Reload::VERSION = '0.06';
 
 use vars qw(%INCS %Stat $TouchTime %UndefFields);
 
@@ -64,7 +64,7 @@ sub handler {
     }
     else {
         *Apache::Reload::INCS = \%INCS;
-        my $ExtraList = ref($r) && $r->dir_config("ReloadModules");
+        my $ExtraList = (ref($r) && $r->dir_config("ReloadModules")) || '';
         my @extra = split(/\s+/, $ExtraList);
         foreach (@extra) {
             if (/(.*)::\*$/) {
