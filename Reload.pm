@@ -1,64 +1,76 @@
-# $Id: Reload.pm,v 1.4 2000/08/12 16:12:28 matt Exp $
+# $Id: Reload.pm,v 1.6 2000/08/29 12:30:29 matt Exp $
 
 package Apache::Reload;
 
 use strict;
 
-$Apache::Reload::VERSION = '0.02';
+$Apache::Reload::VERSION = '0.03';
 
-my %Stat = ($INC{"Apache/Reload.pm"} => time);
-my %INCS;
+use vars qw(%INCS %Stat $TouchTime);
+
+%Stat = ($INC{"Apache/Reload.pm"} => time);
+
+$TouchTime = time;
 
 sub import {
-	my $class = shift;
-	my ($package,$file) = (caller)[0,1];
-	$package =~ s/::/\//g;
-	$package .= ".pm";
-	
-#	warn "Apache::Reload: $package loaded me\n";
-	
-	if (grep /^off$/, @_) {
-		delete $INCS{$package};
-	}
-	else {
-		$INCS{$package} = $file;
-	}
+    my $class = shift;
+    my ($package,$file) = (caller)[0,1];
+    $package =~ s/::/\//g;
+    $package .= ".pm";
+    
+#    warn "Apache::Reload: $package loaded me\n";
+    
+    if (grep /^off$/, @_) {
+        delete $INCS{$package};
+    }
+    else {
+        $INCS{$package} = $file;
+    }
 }
 
 sub handler {
-	my $r = shift;
-	
-	my $DEBUG = ref($r) && (lc($r->dir_config("ReloadDebug") || '') eq 'on');
-	
-	if (ref($r) && (lc($r->dir_config("ReloadAll") || 'on') eq 'on')) {
-		*Apache::Reload::INCS = \%INC;
-	}
-	else {
-		*Apache::Reload::INCS = \%INCS;
-	}
-	
-	while (my($key, $file) = each %Apache::Reload::INCS) {
-		local $^W;
-#		warn "Apache::Reload: Checking mtime of $key\n" if $DEBUG;
-		
-		my $mtime = (stat $file)[9];
-		warn("Apache::Reload: Can't locate $file\n"),next 
-				unless defined $mtime and $mtime;
-		
-		unless (defined $Stat{$file}) {
-			$Stat{$file} = $^T;
-		}
-		
-		if ($mtime > $Stat{$file}) {
-			delete $INC{$key};
-			require $key;
-			warn("Apache::Reload: process $$ reloading $key\n")
-					if $DEBUG;
-		}
-		$Stat{$file} = $mtime;
-	}
-	
-	return 1;
+    my $r = shift;
+    
+    my $DEBUG = ref($r) && (lc($r->dir_config("ReloadDebug") || '') eq 'on');
+    
+    my $TouchFile = ref($r) && $r->dir_config("ReloadTouchFile");
+    
+    if ($TouchFile) {
+        warn "Checking mtime of $TouchFile\n" if $DEBUG;
+        my $touch_mtime = (stat($TouchFile))[9] || return 1;
+        return 1 unless $touch_mtime > $TouchTime;
+        $TouchTime = $touch_mtime;
+    }
+    
+    if (ref($r) && (lc($r->dir_config("ReloadAll") || 'on') eq 'on')) {
+        *Apache::Reload::INCS = \%INC;
+    }
+    else {
+        *Apache::Reload::INCS = \%INCS;
+    }
+    
+    while (my($key, $file) = each %Apache::Reload::INCS) {
+        local $^W;
+#        warn "Apache::Reload: Checking mtime of $key\n" if $DEBUG;
+        
+        my $mtime = (stat $file)[9];
+        warn("Apache::Reload: Can't locate $file\n"),next 
+                unless defined $mtime and $mtime;
+        
+        unless (defined $Stat{$file}) {
+            $Stat{$file} = $^T;
+        }
+        
+        if ($mtime > $Stat{$file}) {
+            delete $INC{$key};
+            require $key;
+            warn("Apache::Reload: process $$ reloading $key\n")
+                    if $DEBUG;
+        }
+        $Stat{$file} = $mtime;
+    }
+    
+    return 1;
 }
 
 1;
@@ -111,6 +123,20 @@ add the following to the httpd.conf:
   PerlInitHandler Apache::Reload
   PerlSetVar ReloadAll Off
   # ReloadAll defaults to On
+
+You can also set a file that you can touch() that causes the reloads to be
+performed. If you set this, and don't touch() the file, the reloads don't
+happen. This can be a great boon in a live environment:
+
+  PerlSetVar ReloadTouchFile /tmp/reload_modules
+
+Now when you're happy with your changes, simply go to the command line and
+type:
+
+  touch /tmp/reload_modules
+
+And your modules will be magically reloaded on the next request. This option
+works in both StatINC emulation mode and the registered modules mode.
 
 If you want to temporarily turn off reloading of a module (which is 
 slightly problematic since it won't happen until the next hit on the
