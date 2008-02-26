@@ -101,6 +101,10 @@ PSUEDOHASHES
 AUTHOR
     Matt Sergeant, matt@sergeant.org
 
+MAINTAINERS
+
+the mod_perl developers, dev@perl.apache.org
+
 SEE ALSO
     Apache::StatINC, Stonehenge::Reload
 

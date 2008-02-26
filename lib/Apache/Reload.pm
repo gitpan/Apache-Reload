@@ -1,10 +1,23 @@
-# $Id: Reload.pm,v 1.16 2001/04/22 18:09:59 matt Exp $
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 package Apache::Reload;
 
 use strict;
 
-$Apache::Reload::VERSION = '0.07';
+$Apache::Reload::VERSION = '0.10';
 
 use vars qw(%INCS %Stat $TouchTime %UndefFields);
 
@@ -100,7 +113,7 @@ sub handler {
         }
     }
     
-    
+    my @changed;
     while (my($key, $file) = each %Apache::Reload::INCS) {
         local $^W;
         warn "Apache::Reload: Checking mtime of $key\n" if $DEBUG;
@@ -120,22 +133,27 @@ sub handler {
         unless (defined $Stat{$file}) {
             $Stat{$file} = $^T;
         }
-        
+		# remove the modules
         if ($mtime > $Stat{$file}) {
             delete $INC{$key};
- #           warn "Reloading $key\n";
-            if (my $symref = $UndefFields{$key}) {
-#                warn "undeffing fields\n";
-                no strict 'refs';
-                undef %{$symref};
-            }
-            require $key;
-            warn("Apache::Reload: process $$ reloading $key\n")
-                    if $DEBUG;
-        }
+            push @changed, $key;
+	 	}
         $Stat{$file} = $mtime;
     }
-    
+
+	# reload the modules
+	foreach my $key (@changed) {
+        warn("Reloading $key\n") if $DEBUG;
+        if (my $symref = $UndefFields{$key}) {
+            warn("undeffing fields\n") if $DEBUG;
+            no strict 'refs';
+            undef %{$symref};
+        }
+        require $key;
+        warn("Apache::Reload: process $$ reloading $key\n")
+            if $DEBUG;
+    }
+
     return 1;
 }
 
@@ -243,6 +261,10 @@ So don't do that.
 =head1 AUTHOR
 
 Matt Sergeant, matt@sergeant.org
+
+=head1 MAINTAINERS
+
+the mod_perl developers, dev@perl.apache.org
 
 =head1 SEE ALSO
 

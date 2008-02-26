@@ -1,0 +1,35 @@
+=head1 NAME
+
+Changes - Apache::Reload change logfile
+
+=head1 CHANGES
+
+=over 1
+
+=item 0.10 February 25, 2008
+
+Add make disttest procedure to RELEASE document - fred
+
+Check for Apache::Test version 1.30, needed to run tests - fred
+
+Apache::Reload and Apache2::Reload bundled for CPAN release
+This release incorporates unreleased changes in 0.08 and 0.09
+[Fred Moyer <fred@redhotpenguin.com>]
+
+=item 0.09
+
+Apache2::Reload was part of mod_perl2 core in this version
+
+=item 0.08
+
+Remove modified modules before reloading them
+[Javier Ureuen Val]
+
+Imported from v0.07 into ASF SVN
+[Philip M. Gollucci <pgollucci@p6m7g8.com>]
+
+Matt Sergeant <matt@sergeant.org> has donated Apache-Reload
+to the ASF.
+
+=back
+

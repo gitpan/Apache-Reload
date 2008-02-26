@@ -1,4 +1,14 @@
-Makefile.PL
 MANIFEST
-Reload.pm
+Makefile.PL
 README
+LICENSE
+lib/Apache/Reload.pm
+lib/Apache2/Reload.pm
+t/conf/extra.last.conf.in
+t/all.t
+t/reload.t
+t/lib/Apache/TestReload.pm
+t/lib/Apache2/TestReload.pm
+RELEASE
+Changes
+META.yml                                 Module meta-data (added by MakeMaker)
