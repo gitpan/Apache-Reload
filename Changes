@@ -6,6 +6,22 @@ Changes - Apache::Reload change logfile
 
 =over 1
 
+=item 0.11 August 21, 2010
+
+Ignore require-hooks which exist in %INC
+[Ryan Gies <ryan@livesite.net>]
+
+Reloads by file, not module name
+[Ryan Gies <ryan@livesite.net>]
+
+Add a no Apache::Reload directive which skips reloading for modules
+that have it included (useful for Moose compatibility).
+[Graham Barr, <gbarr@pobox.com>]
+
+Add Empty NOTICE file
+http://rt.cpan.org/Ticket/Display.html?id=34786
+[Niko Tyni (Debian Perl Group) <ntyni@debian.org>]
+
 =item 0.10 February 25, 2008
 
 Add make disttest procedure to RELEASE document - fred
